@@ -1,5 +1,6 @@
 package `fun`.chezcandy.timberxclone.permissions
 
+import `fun`.chezcandy.timberxclone.extensions.asString
 import android.Manifest
 import android.app.Activity
 import android.app.Application
@@ -17,8 +18,8 @@ import timber.log.Timber
 
 
 data class GrantResult(
-        val permission: String,
-        val granted: Boolean
+    val permission: String,
+    val granted: Boolean
 )
 
 interface PermissionsManager {
@@ -26,13 +27,13 @@ interface PermissionsManager {
     fun attach(activity: Activity)
     fun hasStoragePermission(): Boolean
     fun requestStoragePermission(waitForGranted: Boolean = false): Single<GrantResult>
-    fun processResult(requestCode: Int, permissions: Array<out String>, grantResult: IntArray)
+    fun processResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray)
     fun detach(activity: Activity)
 }
 
 class RealPermissionsManager(
-        private val context: Application,
-        private val mainScheduler: Scheduler
+    private val context: Application,
+    private val mainScheduler: Scheduler
 ) : PermissionsManager {
     companion object {
         @VisibleForTesting(otherwise = PRIVATE)
@@ -57,10 +58,18 @@ class RealPermissionsManager(
     }
 
     override fun requestStoragePermission(waitForGranted: Boolean) =
-            requestPermission(REQUEST_CODE_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE, waitForGranted)
+        requestPermission(
+            REQUEST_CODE_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            waitForGranted
+        )
 
 
-    private fun requestPermission(code: Int, permission: String, waitForGranted: Boolean): Single<GrantResult> {
+    private fun requestPermission(
+        code: Int,
+        permission: String,
+        waitForGranted: Boolean
+    ): Single<GrantResult> {
         Timber.d("Requesting permission: %s", permission)
         if (hasPermission(permission)) {
             Timber.d("Already have this permission!")
@@ -73,22 +82,42 @@ class RealPermissionsManager(
         ActivityCompat.requestPermissions(attachedTo, arrayOf(permission), code)
 
         return onGrantResult()
-                .filter { it.permission == permission }
-                .filter {
-                    if (waitForGranted) {
-                        it.granted
-                    } else {
-                        true
-                    }
+            .filter { it.permission == permission }
+            .filter {
+                if (waitForGranted) {
+                    it.granted
+                } else {
+                    true
                 }
-                .take(1)
-                .singleOrError()
+            }
+            .take(1)
+            .singleOrError()
     }
 
-    override fun processResult(requestCode: Int, permissions: Array<out String>, grantResult: IntArray) {
-        Timber.d("ProcessResult(): requestCode= %d, permissions: %s, grantResults: %s", requestCode, permissions, grantResult)
+    override fun processResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        Timber.d(
+            "ProcessResult(): requestCode= %d, permissions: %s, grantResults: %s",
+            requestCode,
+            permissions.asString(),
+            grantResults.asString()
+        )
+        for ((index, permission) in permissions.withIndex()) {
+            val granted = grantResults[index] == PERMISSION_GRANTED
+            val result = GrantResult(permission, granted)
+            Timber.d("Permission grant result: %s", result)
+            relay.onNext(result)
+        }
 
     }
 
-
+    override fun detach(activity: Activity) {
+        if (this.activity === activity) {
+            Timber.d("detach(): $activity")
+            this.activity = null
+        }
+    }
 }
