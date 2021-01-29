@@ -1,13 +1,20 @@
 package `fun`.chezcandy.timberxclone.permissions
 
+import android.Manifest
 import android.app.Activity
 import android.app.Application
+import android.content.pm.PackageManager.PERMISSION_GRANTED
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.PRIVATE
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.core.Scheduler
 import io.reactivex.rxjava3.core.Single
+import io.reactivex.rxjava3.core.Single.just
 import io.reactivex.rxjava3.subjects.PublishSubject
-import java.util.*
+import timber.log.Timber
+
 
 data class GrantResult(
         val permission: String,
@@ -39,6 +46,49 @@ class RealPermissionsManager(
     override fun onGrantResult(): Observable<GrantResult> = relay.share().observeOn(mainScheduler)
 
     override fun attach(activity: Activity) {
-        
+        Timber.d("attach(): $activity")
+        this.activity = activity
     }
+
+    override fun hasStoragePermission() = hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(context, permission) == PERMISSION_GRANTED
+    }
+
+    override fun requestStoragePermission(waitForGranted: Boolean) =
+            requestPermission(REQUEST_CODE_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE, waitForGranted)
+
+
+    private fun requestPermission(code: Int, permission: String, waitForGranted: Boolean): Single<GrantResult> {
+        Timber.d("Requesting permission: %s", permission)
+        if (hasPermission(permission)) {
+            Timber.d("Already have this permission!")
+            return just(GrantResult(permission, true).also {
+                relay.onNext(it)
+            })
+        }
+
+        val attachedTo = activity ?: throw IllegalStateException("Not attached")
+        ActivityCompat.requestPermissions(attachedTo, arrayOf(permission), code)
+
+        return onGrantResult()
+                .filter { it.permission == permission }
+                .filter {
+                    if (waitForGranted) {
+                        it.granted
+                    } else {
+                        true
+                    }
+                }
+                .take(1)
+                .singleOrError()
+    }
+
+    override fun processResult(requestCode: Int, permissions: Array<out String>, grantResult: IntArray) {
+        Timber.d("ProcessResult(): requestCode= %d, permissions: %s, grantResults: %s", requestCode, permissions, grantResult)
+
+    }
+
+
 }
