@@ -1,16 +1,18 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
-    ext.kotlin_version = "1.4.21"
+    apply from: './dependencies.gradle'
+
     repositories {
         google()
         jcenter()
     }
-    dependencies {
-        classpath "com.android.tools.build:gradle:4.1.2"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
 
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
+    dependencies {
+        classpath "com.android.tools.build:gradle:${versions.gradlePlugin}"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${versions.kotlin}"
+        classpath "com.google.gms:google-services:${versions.googleServices}"
+        classpath "com.google.firebase:firebase-crashlytics-gradle:${versions.crashlyticsPlugin}"
+        classpath "com.diffplug.spotless:spotless-plugin-gradle:${versions.spotlessPlugin}"
     }
 }
 
@@ -18,8 +20,7 @@ allprojects {
     repositories {
         google()
         jcenter()
-
-        maven { url "https://oss.jfrog.org/libs-snapshot" }
+        mavenCentral()
     }
 }
 
